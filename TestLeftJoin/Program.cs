@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -13,23 +14,30 @@ namespace TestLeftJoin
             IEnumerable<Customer> customers = Db.GetCustomer();
             var orders = Db.GetOrder();
              customers = customers
-                 .GroupJoin<Customer, Order, int, Customer>(orders, c=>c.Id, o=>o.CustomerId, (c,os)=>{
+                 .GroupJoin(orders, c=>c.Id, o=>o.CustomerId, (c,os)=>{
                      return c.MergeOrderDtails(os);
+                 })
+                .GroupJoin(Db.GetAddress(), c=>c.Id, o=>o.CustomerId, (c,os)=>{
+                    return c.MergeAddresDtails(os);
                  });
 
              Console.WriteLine(customers.Count());
 
              foreach (var c in customers)
              {
-                 Console.WriteLine();
-                 Console.WriteLine(c.Id);
-                 Console.WriteLine(c.Name);
-                 Console.WriteLine(c.OrderCount);                 
-                 Console.WriteLine(c.TotalSpends);
-                 Console.WriteLine(c.FirstOrderDate);
+                 Console.WriteLine();                 
+                 Console.WriteLine(c.FormatInput(x=>x.Id));
+                 Console.WriteLine(c.FormatInput(x => x.Name));
+                 Console.WriteLine(c.FormatInput(x => x.OrderCount));
+                 Console.WriteLine(c.FormatInput(x => x.AddressCount));
+                 Console.WriteLine(c.FormatInput(x => x.TotalSpends));
+                 Console.WriteLine(c.FormatInput(x => x.FirstOrderDate));
              }
              Console.ReadLine();
         }
+
+        
+
     }
 
 
@@ -53,10 +61,25 @@ namespace TestLeftJoin
             list.Add(new Order { CustomerId = 1, OrderDate = Convert.ToDateTime("01-23-2017"), Price = 500, Quantity = 1, Item = "Non Stick Pan" });
             return list;
         }
+
+        public static List<Address> GetAddress()
+        {
+            var list = new List<Address>();
+            list.Add(new Address { CustomerId = 1, City ="Gurgaon" });
+            list.Add(new Address { CustomerId = 2, City = "Hydrabad" });
+            list.Add(new Address { CustomerId = 2, City = "Noida" });
+            return list;
+        }
     }
 
     public static class ExtMethods
     {
+        public static string FormatInput<TModel, TValue>(this TModel obj, Expression<Func<TModel, TValue>> func)
+        {
+            var me = func.Body as MemberExpression;
+            return string.Format("{0} - {1}", me.Member.Name, func.Compile().Invoke(obj));
+        }
+
         public static Customer MergeOrderDtails(this Customer c, IEnumerable<Order> os)
         {
             if (os.Any())
@@ -64,6 +87,15 @@ namespace TestLeftJoin
                 c.OrderCount = os.Count();
                 c.TotalSpends = os.Sum(x => x.Price);
                 c.FirstOrderDate = os.FirstOrDefault().OrderDate; 
+            }
+
+            return c;
+        }
+        public static Customer MergeAddresDtails(this Customer c, IEnumerable<Address> add)
+        {
+            if (add.Any())
+            {
+                c.AddressCount = add.Count();                
             }
 
             return c;
@@ -79,13 +111,17 @@ namespace TestLeftJoin
     {
         public int Id { get; set; }
         public string Name { get; set; }
-        public string Address { get; set; }
     }
     public partial class Customer : IPoco
     {
         public int OrderCount { get; set; }
         public decimal TotalSpends { get; set; }
         public DateTime FirstOrderDate { get; set; }
+    }
+
+    public partial class Customer : IPoco
+    {
+        public int AddressCount { get; set; }        
     }
 
 
@@ -96,6 +132,15 @@ namespace TestLeftJoin
         public string Item { get; set; }
         public decimal Price { get; set; }
         public decimal Quantity { get; set; }
+    }
+
+    public class Address : IPoco
+    {
+        public int CustomerId { get; set; }
+        public string AddressLine { get; set; }
+        public string City { get; set; }
+        public string Country { get; set; }
+        public string ZipCode { get; set; }
     }
 
 }
